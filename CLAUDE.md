@@ -14,12 +14,14 @@ A word search game for an elderly UK user, installed as a PWA on a tablet.
 
 ## Version Bumping
 
-When deploying changes, bump the version in **two places** simultaneously:
+**Every push that changes user-facing files requires a version bump.** User-facing files are: `app.js`, `words.js`, `style.css`, `index.html`, `sw.js`, `manifest.json`, `icon.svg`. Pushes that only change non-deployed files (`CLAUDE.md`, `DESIGN.md`, `TODO.md`, `tests/`, `.github/`) do not need a bump.
 
-1. `index.html` — the `<div id="version">v4</div>` element (user-visible)
-2. `sw.js` — the `CACHE_NAME = "wordsearch-v4"` constant (triggers cache refresh)
+Bump in **two places** simultaneously (in the same commit as the user-facing changes):
 
-Both must use the same version number. Bump only at deploy time, not during development. The version number tells the user which build they're running (visible bottom-right corner).
+1. `index.html` — the `<div id="version">v6</div>` element (user-visible)
+2. `sw.js` — the `CACHE_NAME = "wordsearch-v6"` constant (triggers cache refresh)
+
+Both must use the same version number. The version number tells the user which build they're running (visible bottom-right corner).
 
 ## Deployment
 
