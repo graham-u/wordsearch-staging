@@ -521,7 +521,13 @@ window.addEventListener("resize", () => renderHighlightSVG());
 
 // ── Service Worker ──
 if ("serviceWorker" in navigator) {
+  let hasController = !!navigator.serviceWorker.controller;
   navigator.serviceWorker.register("sw.js");
+  // When a new service worker takes over (not on first install), reload to pick up new assets
+  navigator.serviceWorker.addEventListener("controllerchange", () => {
+    if (hasController) location.reload();
+    hasController = true;
+  });
 }
 
 // ── Update button ──
