@@ -19,8 +19,15 @@ async function freshPage() {
   if (!_page) await init();
   await _page.goto(URL);
   await waitForPageLoad(_page);
-  await _page.waitForTimeout(300);
-  await _page.evaluate(() => localStorage.removeItem("wordsearch-state"));
+  await _page.waitForTimeout(500);
+  // Clear state — may fail if a service worker triggers a reload, so retry
+  try {
+    await _page.evaluate(() => localStorage.removeItem("wordsearch-state"));
+  } catch {
+    await waitForPageLoad(_page);
+    await _page.waitForTimeout(300);
+    await _page.evaluate(() => localStorage.removeItem("wordsearch-state"));
+  }
   await _page.goto(URL);
   await waitForPageLoad(_page);
   await _page.waitForTimeout(300);

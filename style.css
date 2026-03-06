@@ -205,6 +205,10 @@ button:focus-visible, .word-tag:focus-visible {
   pointer-events: auto;
 }
 
+body:has(#overlay.visible) #nav-bar {
+  pointer-events: none;
+}
+
 #overlay .message {
   background: white;
   border-radius: 16px;

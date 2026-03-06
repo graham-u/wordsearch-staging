@@ -13,7 +13,8 @@ const HIGHLIGHT_COLORS = [
   "rgba(245, 158, 11, 0.35)",
   "rgba(236, 72, 153, 0.35)",
   "rgba(20, 184, 166, 0.35)",
-  "rgba(249, 115, 22, 0.35)"
+  "rgba(249, 115, 22, 0.35)",
+  "rgba(100, 116, 139, 0.35)"
 ];
 
 // ── State ──
@@ -29,6 +30,7 @@ let categoryIndex = 0;
 let selecting = false;
 let startCell = null;
 let currentCells = [];
+let capturedPointerId = null;
 
 // ── DOM refs ──
 const gridEl = document.getElementById("grid");
@@ -81,25 +83,29 @@ function pickWords(theme) {
 }
 
 function generatePuzzle() {
-  const theme = nextCategory();
-  for (let attempt = 0; attempt < 20; attempt++) {
-    const words = pickWords(theme);
-    const result = tryPlaceWords(words);
-    if (result) {
-      fillBlanks(result.grid);
-      puzzleNumber++;
-      currentPuzzle = {
-        grid: result.grid,
-        words,
-        theme,
-        foundWords: new Set(),
-        foundHighlights: [],
-        wordPositions: result.positions,
-        puzzleNumber
-      };
-      return;
+  for (let categoryAttempt = 0; categoryAttempt < 5; categoryAttempt++) {
+    const theme = nextCategory();
+    for (let attempt = 0; attempt < 20; attempt++) {
+      const words = pickWords(theme);
+      const result = tryPlaceWords(words);
+      if (result) {
+        fillBlanks(result.grid);
+        puzzleNumber++;
+        currentPuzzle = {
+          grid: result.grid,
+          words,
+          theme,
+          foundWords: new Set(),
+          foundHighlights: [],
+          wordPositions: result.positions,
+          puzzleNumber
+        };
+        return true;
+      }
     }
   }
+  currentPuzzle = null;
+  return false;
 }
 
 function tryPlaceWords(words) {
@@ -223,16 +229,34 @@ function updateNavButtons() {
 
 // ── SVG highlight lines ──
 
-function renderHighlightSVG() {
-  let svg = gridWrapper.querySelector("#highlight-svg");
-  if (svg) svg.remove();
+// Persistent SVG element and drag line — created once, updated as needed
+let highlightSVG = null;
+let dragLine = null;
 
-  svg = document.createElementNS("http://www.w3.org/2000/svg", "svg");
-  svg.id = "highlight-svg";
-  svg.style.cssText = "position:absolute;top:0;left:0;width:100%;height:100%;pointer-events:none;z-index:2";
+function ensureHighlightSVG() {
+  if (!highlightSVG) {
+    highlightSVG = document.createElementNS("http://www.w3.org/2000/svg", "svg");
+    highlightSVG.id = "highlight-svg";
+    gridWrapper.appendChild(highlightSVG);
+  }
+  if (!dragLine) {
+    dragLine = document.createElementNS("http://www.w3.org/2000/svg", "line");
+    dragLine.setAttribute("stroke", "rgba(37, 99, 235, 0.3)");
+    dragLine.setAttribute("stroke-linecap", "round");
+    dragLine.style.display = "none";
+    highlightSVG.appendChild(dragLine);
+  }
+}
+
+function renderFoundHighlights() {
+  ensureHighlightSVG();
+  // Remove all lines except the drag line
+  const lines = highlightSVG.querySelectorAll("line:not(:last-child)");
+  lines.forEach(l => l.remove());
 
   const cellSize = gridWrapper.offsetWidth / GRID_SIZE;
 
+  // Re-insert found highlights before the drag line
   for (const h of currentPuzzle.foundHighlights) {
     const line = document.createElementNS("http://www.w3.org/2000/svg", "line");
     line.setAttribute("x1", h.startCol * cellSize + cellSize / 2);
@@ -242,25 +266,34 @@ function renderHighlightSVG() {
     line.setAttribute("stroke", h.color);
     line.setAttribute("stroke-width", cellSize * 0.7);
     line.setAttribute("stroke-linecap", "round");
-    svg.appendChild(line);
+    highlightSVG.insertBefore(line, dragLine);
   }
 
-  // Current drag selection
+  // Update drag line stroke width
+  dragLine.setAttribute("stroke-width", cellSize * 0.7);
+}
+
+function updateDragLine() {
+  ensureHighlightSVG();
+  const cellSize = gridWrapper.offsetWidth / GRID_SIZE;
+
   if (selecting && currentCells.length > 1) {
     const first = currentCells[0];
     const last = currentCells[currentCells.length - 1];
-    const line = document.createElementNS("http://www.w3.org/2000/svg", "line");
-    line.setAttribute("x1", first.col * cellSize + cellSize / 2);
-    line.setAttribute("y1", first.row * cellSize + cellSize / 2);
-    line.setAttribute("x2", last.col * cellSize + cellSize / 2);
-    line.setAttribute("y2", last.row * cellSize + cellSize / 2);
-    line.setAttribute("stroke", "rgba(37, 99, 235, 0.3)");
-    line.setAttribute("stroke-width", cellSize * 0.7);
-    line.setAttribute("stroke-linecap", "round");
-    svg.appendChild(line);
+    dragLine.setAttribute("x1", first.col * cellSize + cellSize / 2);
+    dragLine.setAttribute("y1", first.row * cellSize + cellSize / 2);
+    dragLine.setAttribute("x2", last.col * cellSize + cellSize / 2);
+    dragLine.setAttribute("y2", last.row * cellSize + cellSize / 2);
+    dragLine.setAttribute("stroke-width", cellSize * 0.7);
+    dragLine.style.display = "";
+  } else {
+    dragLine.style.display = "none";
   }
+}
 
-  gridWrapper.appendChild(svg);
+function renderHighlightSVG() {
+  renderFoundHighlights();
+  updateDragLine();
 }
 
 // ── Touch / Pointer handling ──
@@ -306,9 +339,10 @@ function onPointerDown(e) {
   selecting = true;
   startCell = cell;
   currentCells = [{ row: cell.row, col: cell.col }];
+  capturedPointerId = e.pointerId;
   gridEl.setPointerCapture(e.pointerId);
   highlightCells(currentCells);
-  renderHighlightSVG();
+  updateDragLine();
 }
 
 function onPointerMove(e) {
@@ -320,7 +354,7 @@ function onPointerMove(e) {
   if (cells) {
     currentCells = cells;
     highlightCells(cells);
-    renderHighlightSVG();
+    updateDragLine();
   }
 }
 
@@ -330,11 +364,12 @@ function onPointerUp(e) {
   if (gridEl.hasPointerCapture(e.pointerId)) {
     gridEl.releasePointerCapture(e.pointerId);
   }
+  capturedPointerId = null;
   selecting = false;
   checkSelection();
   clearSelectionHighlight();
   currentCells = [];
-  renderHighlightSVG();
+  updateDragLine();
 }
 
 function checkSelection() {
@@ -411,14 +446,12 @@ hintNo.addEventListener("click", () => {
 // ── Completion ──
 
 function showComplete() {
-  // Remove completed puzzle from the array
-  puzzles.splice(puzzleIdx, 1);
-  // Adjust index
-  if (puzzleIdx >= puzzles.length) puzzleIdx = puzzles.length - 1;
-  saveState();
   overlayEl.classList.add("visible");
   setTimeout(() => {
     overlayEl.classList.remove("visible");
+    // Remove completed puzzle now that overlay is done
+    puzzles.splice(puzzleIdx, 1);
+    if (puzzleIdx >= puzzles.length) puzzleIdx = Math.max(puzzles.length - 1, 0);
     goToNewPuzzle();
   }, 2000);
 }
@@ -443,7 +476,12 @@ function goToNewPuzzle() {
     return;
   }
   // Generate a brand new puzzle
-  generatePuzzle();
+  if (!generatePuzzle() || !currentPuzzle) {
+    overlayEl.querySelector("h2").textContent = "Oops!";
+    overlayEl.querySelector("p").textContent = "Could not generate a puzzle. Please tap Update.";
+    overlayEl.classList.add("visible");
+    return;
+  }
   // Trim from the front if we're over the limit
   if (puzzles.length >= MAX_PUZZLES) {
     puzzles.shift();
@@ -509,15 +547,19 @@ gridEl.addEventListener("touchmove", e => e.preventDefault(), { passive: false }
 
 document.addEventListener("pointerup", () => {
   if (selecting) {
+    if (capturedPointerId != null) {
+      try { gridEl.releasePointerCapture(capturedPointerId); } catch (e) { /* already released */ }
+      capturedPointerId = null;
+    }
     selecting = false;
     checkSelection();
     clearSelectionHighlight();
     currentCells = [];
-    renderHighlightSVG();
+    updateDragLine();
   }
 });
 
-window.addEventListener("resize", () => renderHighlightSVG());
+window.addEventListener("resize", () => renderFoundHighlights());
 
 // ── Service Worker ──
 if ("serviceWorker" in navigator) {
@@ -572,18 +614,39 @@ function loadState() {
     if (!raw) return false;
     const data = JSON.parse(raw);
     if (!Array.isArray(data.puzzles) || data.puzzles.length === 0) return false;
+
+    // Validate puzzleIdx bounds
+    if (typeof data.puzzleIdx !== "number" || data.puzzleIdx < 0 || data.puzzleIdx >= data.puzzles.length) return false;
+
+    // Validate each puzzle has required fields
+    const requiredFields = ["grid", "words", "theme", "foundWords", "wordPositions"];
+    for (const p of data.puzzles) {
+      for (const f of requiredFields) {
+        if (p[f] == null) return false;
+      }
+    }
+
     puzzles = data.puzzles.map(p => ({
       grid: p.grid,
       words: p.words,
       theme: p.theme,
       foundWords: new Set(p.foundWords),
-      foundHighlights: p.foundHighlights,
+      foundHighlights: p.foundHighlights || [],
       wordPositions: p.wordPositions,
       puzzleNumber: p.puzzleNumber
     }));
-    puzzleNumber = data.puzzleNumber;
-    categoryOrder = data.categoryOrder;
-    categoryIndex = data.categoryIndex;
+    puzzleNumber = data.puzzleNumber || 0;
+
+    // Filter categoryOrder to only include keys that still exist in WORD_LISTS
+    const validCategories = Object.keys(WORD_LISTS);
+    categoryOrder = Array.isArray(data.categoryOrder)
+      ? data.categoryOrder.filter(c => validCategories.includes(c))
+      : [];
+    if (categoryOrder.length === 0) {
+      categoryOrder = shuffleArray(validCategories);
+    }
+    categoryIndex = typeof data.categoryIndex === "number" ? Math.min(data.categoryIndex, categoryOrder.length) : 0;
+
     setCurrent(data.puzzleIdx);
     return true;
   } catch (e) {
@@ -594,8 +657,11 @@ function loadState() {
 // ── Start ──
 if (!loadState()) {
   initCategories();
-  generatePuzzle();
-  puzzles.push(currentPuzzle);
-  setCurrent(0);
+  if (!generatePuzzle() || !currentPuzzle) {
+    document.body.textContent = "Could not generate a puzzle. Please reload.";
+  } else {
+    puzzles.push(currentPuzzle);
+    setCurrent(0);
+  }
 }
-renderAll();
+if (currentPuzzle) renderAll();

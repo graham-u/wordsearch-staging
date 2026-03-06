@@ -29,7 +29,7 @@ Pure vanilla HTML/CSS/JS — no build tools, no frameworks. Served as static fil
 
 2. **Word selection**: 9 words are picked at random from the current category. Words must be <= 8 letters (grid size).
 
-3. **Grid placement**: Words are placed on an 8x8 grid. Longer words are placed first (they're harder to fit). Each word tries random directions (horizontal, vertical, diagonal — all 8 directions including reversed) and random positions. Words may overlap if the shared letter matches. If placement fails after 100 attempts, a different category is tried.
+3. **Grid placement**: Words are placed on an 8x8 grid. Longer words are placed first (they're harder to fit). Each word tries random directions (horizontal, vertical, diagonal — all 8 directions including reversed) and random positions. Words may overlap if the shared letter matches. If placement fails after 20 attempts, a different category is tried (up to 5 categories). If all categories fail, an error is shown.
 
 4. **Fill**: Empty cells are filled with random letters A-Z.
 

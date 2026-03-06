@@ -1,4 +1,4 @@
-const CACHE_NAME = "wordsearch-v11";
+const CACHE_NAME = "wordsearch-v12";
 const ASSETS = [
   ".",
   "index.html",
@@ -6,7 +6,8 @@ const ASSETS = [
   "app.js",
   "words.js",
   "manifest.json",
-  "icon.svg"
+  "icon.svg",
+  "icon-180.png"
 ];
 
 self.addEventListener("install", (e) => {
