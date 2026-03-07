@@ -23,6 +23,12 @@ Bump in **two places** simultaneously (in the same commit as the user-facing cha
 
 Both must use the same version number. The version number tells the user which build they're running (visible bottom-right corner).
 
+A **pre-push hook** (`.githooks/pre-push`) enforces this — it blocks pushes that change user-facing files without bumping both version locations. After a fresh clone, activate hooks with:
+
+```bash
+git config core.hooksPath .githooks
+```
+
 ## Deployment
 
 There are two deployment targets — **staging** and **production** — both using GitHub Pages. Always deploy to staging first, test, then promote to production.

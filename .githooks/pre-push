@@ -1,0 +1,68 @@
+#!/bin/bash
+#
+# Pre-push hook: block pushes that change user-facing files without a version bump.
+#
+# User-facing files: app.js, words.js, style.css, index.html, sw.js, manifest.json, icon.svg
+# Version bump = both index.html and sw.js must be in the changed set.
+#
+# Reads the list of commits being pushed and checks the combined diff.
+
+USER_FACING="app.js words.js style.css index.html sw.js manifest.json icon.svg icon-180.png"
+
+while read local_ref local_oid remote_ref remote_oid; do
+  # Skip branch deletions
+  if [ "$local_oid" = "0000000000000000000000000000000000000000" ]; then
+    continue
+  fi
+
+  # Determine the range of commits being pushed
+  if [ "$remote_oid" = "0000000000000000000000000000000000000000" ]; then
+    # New branch — compare against main remote tracking
+    range="$local_oid"
+  else
+    range="$remote_oid..$local_oid"
+  fi
+
+  # Get list of changed files in this push
+  changed=$(git diff --name-only "$range" 2>/dev/null)
+  if [ -z "$changed" ]; then
+    continue
+  fi
+
+  # Check if any user-facing files changed
+  user_facing_changed=false
+  for f in $USER_FACING; do
+    if echo "$changed" | grep -qx "$f"; then
+      user_facing_changed=true
+      break
+    fi
+  done
+
+  if [ "$user_facing_changed" = false ]; then
+    continue
+  fi
+
+  # Check that both version-bump files are in the changed set
+  has_html=false
+  has_sw=false
+  echo "$changed" | grep -qx "index.html" && has_html=true
+  echo "$changed" | grep -qx "sw.js" && has_sw=true
+
+  if [ "$has_html" = false ] || [ "$has_sw" = false ]; then
+    echo ""
+    echo "ERROR: User-facing files changed without a version bump."
+    echo ""
+    echo "Changed user-facing files:"
+    for f in $USER_FACING; do
+      echo "$changed" | grep -qx "$f" && echo "  - $f"
+    done
+    echo ""
+    echo "Both index.html (version div) and sw.js (CACHE_NAME) must be updated."
+    echo "Missing: $([ "$has_html" = false ] && echo 'index.html ')$([ "$has_sw" = false ] && echo 'sw.js')"
+    echo ""
+    echo "To skip this check: git push --no-verify"
+    exit 1
+  fi
+done
+
+exit 0
