@@ -3,9 +3,8 @@
 # Pre-push hook: block pushes that change user-facing files without a version bump.
 #
 # User-facing files: app.js, words.js, style.css, index.html, sw.js, manifest.json, icon.svg
-# Version bump = both index.html and sw.js must be in the changed set.
-#
-# Reads the list of commits being pushed and checks the combined diff.
+# Version bump = the version number in both index.html and sw.js must differ between
+# the remote and local endpoints.
 
 USER_FACING="app.js words.js style.css index.html sw.js manifest.json icon.svg icon-180.png"
 
@@ -42,13 +41,25 @@ while read local_ref local_oid remote_ref remote_oid; do
     continue
   fi
 
-  # Check that both version-bump files are in the changed set
-  has_html=false
-  has_sw=false
-  echo "$changed" | grep -qx "index.html" && has_html=true
-  echo "$changed" | grep -qx "sw.js" && has_sw=true
+  # Extract version numbers from index.html at both endpoints
+  remote_html_ver=$(git show "$remote_oid:index.html" 2>/dev/null \
+    | sed -n 's/.*<div id="version">v\([0-9]*\)<\/div>.*/\1/p')
+  local_html_ver=$(git show "$local_oid:index.html" 2>/dev/null \
+    | sed -n 's/.*<div id="version">v\([0-9]*\)<\/div>.*/\1/p')
 
-  if [ "$has_html" = false ] || [ "$has_sw" = false ]; then
+  # Extract version numbers from sw.js at both endpoints
+  remote_sw_ver=$(git show "$remote_oid:sw.js" 2>/dev/null \
+    | sed -n 's/.*CACHE_NAME = "wordsearch-v\([0-9]*\)".*/\1/p')
+  local_sw_ver=$(git show "$local_oid:sw.js" 2>/dev/null \
+    | sed -n 's/.*CACHE_NAME = "wordsearch-v\([0-9]*\)".*/\1/p')
+
+  # Version was bumped if both changed
+  html_bumped=false
+  sw_bumped=false
+  [ "$local_html_ver" != "$remote_html_ver" ] && html_bumped=true
+  [ "$local_sw_ver" != "$remote_sw_ver" ] && sw_bumped=true
+
+  if [ "$html_bumped" = false ] || [ "$sw_bumped" = false ]; then
     echo ""
     echo "ERROR: User-facing files changed without a version bump."
     echo ""
@@ -58,7 +69,10 @@ while read local_ref local_oid remote_ref remote_oid; do
     done
     echo ""
     echo "Both index.html (version div) and sw.js (CACHE_NAME) must be updated."
-    echo "Missing: $([ "$has_html" = false ] && echo 'index.html ')$([ "$has_sw" = false ] && echo 'sw.js')"
+    missing=""
+    [ "$html_bumped" = false ] && missing="index.html "
+    [ "$sw_bumped" = false ] && missing="${missing}sw.js"
+    echo "Missing bump in: $missing"
     echo ""
     echo "To skip this check: git push --no-verify"
     exit 1
